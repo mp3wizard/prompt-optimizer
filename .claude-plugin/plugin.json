@@ -1,0 +1,22 @@
+{
+  "name": "prompt-optimizer",
+  "version": "2.0.0",
+  "description": "Prompt optimization and composition for Claude's 5-generation models — Opus 5, Sonnet 5, Fable 5 — including multi-model agent stacks and deconstraint passes over system prompts, skills, and CLAUDE.md.",
+  "author": {
+    "name": "mp3wizard"
+  },
+  "repository": "https://github.com/mp3wizard/prompt-optimizer",
+  "license": "MIT",
+  "keywords": [
+    "prompt-engineering",
+    "prompt-optimization",
+    "opus-5",
+    "sonnet-5",
+    "fable-5",
+    "agent-orchestration",
+    "context-engineering"
+  ],
+  "skills": [
+    "./skills/prompt-optimizer"
+  ]
+}
