@@ -1,6 +1,6 @@
 ---
 name: prompt-optimizer
-description: Advanced prompt optimization and composition system for all prompt types (system prompts, task-specific, creative, technical, agentic, multi-agent orchestration). Use when users need to refine, optimize, or transform prompts to achieve better AI outputs. Triggers include requests to improve prompts, make prompts more effective, analyze prompt quality, create prompts from scratch, optimize existing prompts for specific goals, rightsize a system prompt or CLAUDE.md, write controller/worker prompts for an agent stack, or optimize for specific Claude models (Opus 5, Sonnet 5, Fable 5, and legacy 4.x). Also use when users share prompts that could be improved or ask for prompt engineering guidance.
+description: Advanced prompt optimization and composition system for all prompt types (system prompts, task-specific, creative, technical, agentic, multi-agent orchestration). Use when users need to refine, optimize, or transform prompts to achieve better AI outputs. Triggers include requests to improve prompts, make prompts more effective, analyze prompt quality, create prompts from scratch, optimize existing prompts for specific goals, rightsize a system prompt or CLAUDE.md, write controller/worker prompts for an agent stack, or optimize for specific Claude models (Opus 5.5, Opus 5, Sonnet 5, Fable 5, and legacy 4.x). Also use when users share prompts that could be improved or ask for prompt engineering guidance.
 ---
 
 # AI Best Prompt Optimizer and Composer
@@ -28,7 +28,7 @@ Before optimization, understand:
 - What context is essential vs. nice-to-have?
 - What are the failure modes to prevent?
 - Are there implicit assumptions that should be explicit?
-- **Target model?** (Opus 5 / Sonnet 5 / Fable 5 and legacy 4.x behave differently — see `references/model-techniques.md`)
+- **Target model?** (Opus 5.5 / Opus 5 / Sonnet 5 / Fable 5 and legacy 4.x behave differently — see `references/model-techniques.md`)
 - **Effort setting?** For API use cases, `max`/`xhigh`/`high`/`medium`/`low` changes optimal prompt density
 - **Single prompt or an agent stack?** If a controller model briefs worker models, see `references/agent-orchestration.md` — three prompts exist per unit of work, and they fail differently
 
@@ -186,8 +186,11 @@ Reusing a 4.x snippet on a 5-gen model is the most common way to make a prompt w
 | Progress updates | May need forcing | Narrates on its own → **remove scaffolding** |
 | Rules vs judgment | Explicit rules help | Over-constraint hurts → **deconstrain** |
 
+**Opus 5.5** inherits the Opus 5 column. What it changes on top: effort starts at `medium` (not `xhigh`), thinking cannot be disabled, and "silent" agents usually need `display: "updates"` rather than prompt changes.
+
 ### Model-specific behavior shifts
 
+- **Opus 5.5** — A delta over Opus 5: Opus 5 prompts carry over unchanged. 30%+ faster output, fewer tokens per task, cheaper. **Thinking always on** — `disabled`/`budget_tokens` return 400; so do `tool_choice` `any`/`tool`. **Effort default `medium`**, which matches or beats Opus 5 at `high` on coding and knowledge-work evals; it thinks more per level, so an inherited `xhigh` costs more — start `medium`, sweep, lower effort before prompting for less thinking. Text between tool calls arrives as **`thinking` blocks** (empty by default; `display: "updates"` returns them alone, `"summarized"` mixes them with reasoning summaries). Unattended loops stop early on text-only `end_turn` → treat it as a report and add continuation logic. Asking for reasoning in the response can be refused (`reasoning_extraction`). Responds strongly to elapsed-time/budget signals, to "explore broadly before acting" in multi-app work, and to `<pasted_content>` marking. Remove chat "think carefully" lines. Vision is strong without tools → re-test scaffolding. Frontend: name the specific default styles to avoid.
 - **Opus 5** — Thinking **on by default** (disabling capped at `high` effort). Verbose — effort does *not* control visible length, prompting does. Narrates more; writes longer deliverables. **Over-verifies** if told to verify. Can expand task scope. **Over-delegates** to subagents. Narrates self-corrections at length. Full effort ladder with `low`/`medium` unusually strong. Code-review severity filters are followed literally → ask for coverage, filter downstream. Vision improves most from crop/analyze/verify *tools*, not more thinking.
 - **Sonnet 5** — Adaptive thinking on by default; `thinking.display` defaults to `"omitted"`. **Non-default `temperature`/`top_p`/`top_k` return 400** → style variety must come from the prompt (propose-then-pick). More literal → state scope explicitly. Respects effort strictly at the low end → raise effort rather than prompting around shallow reasoning. New tokenizer, ~30% more tokens. Less tool-eager when thinking is disabled.
 - **Fable 5** — Thinking always on, cannot be disabled; raw chain of thought never returned. Long turns (minutes). **De-prescribe migrated prompts** — 4.x step-by-step scaffolding reduces its output quality. Benefits from a memory file and from asynchronous sub-agents.
@@ -200,6 +203,7 @@ Reusing a 4.x snippet on a 5-gen model is the most common way to make a prompt w
 - Context engineering for 5-gen (what to cut from system prompts, skills, `CLAUDE.md`)
 - Effort parameter tuning (`max` / `xhigh` / `high` / `medium` / `low`) and per-role routing
 - Thinking configuration, `display`, and the thinking-disabled failure modes on Opus 5
+- Opus 5.5 delta: request-level 400s, effort recalibration, unattended-run continuation, progress updates in `thinking` blocks, multi-app exploration, time budgets, settled chat answers, pasted-content marking, safeguard refusals
 - Verbosity, deliverable length, narration, and self-correction control
 - Scope discipline and over-verification removal
 - Tool usage patterns (`<default_to_action>`, `<do_not_act_before_instructions>`)
@@ -247,11 +251,22 @@ Reusing a 4.x snippet on a 5-gen model is the most common way to make a prompt w
 | Verbosity Control | Responses too long | Opus 5 / Sonnet 5 | "Keep responses focused, brief, and concise" — *not* lower effort |
 | Deliverable Length | Model-authored files run long | Opus 5 | "Match length to what the task needs; no filler sections" |
 | Scope Discipline | Model widens the task | Opus 5 | "Deliver what was asked… finish the whole task" |
-| Curb Narration | Too chatty between tool calls | Opus 5 | "Default to silence between tool calls" |
+| Curb Narration | Too chatty between tool calls | Opus 5 (5.5: not re-characterized — check rendering first) | "Default to silence between tool calls" |
+| Render Updates | Agent looks silent mid-turn | Opus 5.5 | `display: "updates"`; render non-empty `thinking` blocks; harness reminder after ~5 silent steps |
+| Definition of Done | Long autonomous task | Opus 5.5 | `Done means:` list of observables + named stop conditions; doubles as the end-of-turn checker's criterion |
+| Unattended Continuation | Loop stops after a progress report | Opus 5.5 | Text-only `end_turn` = report; checklist + continuation nudge (cap 2–3); name the early stops to avoid |
+| Explore Before Acting | Multi-app automation misses context | Opus 5.5 | "Explore broadly with tool calls… including sources the task doesn't mention" |
+| Time Budget | Agent team should finish sooner | Opus 5.5 | Append `elapsed 340s / 1200s` to each harness message |
+| Settled Answers | Chat follow-ups re-think earlier answers | Opus 5.5 | "Treat earlier answers as settled unless asked" |
+| Drop "Think Carefully" | Chat system prompt slows first token | Opus 5.5 | Delete the line; effort is the control |
+| Mark Pasted Text | Users paste emails/pages into messages | Opus 5.5 | `<pasted_content id="…">` tags + system-prompt note |
+| No Reasoning-in-Response | Prompt asks model to show its reasoning | Opus 5.5 | Delete; read `display: "summarized"` thinking (`reasoning_extraction` refusal) |
+| Named Design Exclusions | Frontend looks generic | Opus 5.5 | List the specific defaults to avoid (cream bg, italic accents, 01/02/03, mono labels, pills) |
 | Curb Self-Correction | Narrates own mistakes at length | Opus 5 | "Only correct when it changes the user's decisions" |
 | Effort Sweep | Inherited effort defaults | Opus 5 / Sonnet 5 | Start `high` (`xhigh` coding), sweep down — `low`/`medium` are strong |
+| Effort Recalibration | Migrating to Opus 5.5 | Opus 5.5 | Start `medium` (the default); `xhigh`/`max` only with measured gains; lower effort, not prompt, for less thinking |
 | Thinking Budget Check | Prompt never set `thinking` | Opus 5 / Sonnet 5 | Thinking now on by default — re-check `max_tokens` |
-| Thinking-Disabled Repair | Tool calls appear as text / tag leakage | Opus 5 | Prefer low effort + thinking on; else generic "no internal XML tags" |
+| Thinking-Disabled Repair | Tool calls appear as text / tag leakage | Opus 5 only (400 on 5.5) | Prefer low effort + thinking on; else generic "no internal XML tags" |
 | Sampling → Prompt | Prompt relied on `temperature` | Sonnet 5 | Non-default sampling = 400; use propose-then-pick for variety |
 | Literal Scoping | Prevent narrow interpretation | Sonnet 5 / Opus 5 | "Apply to every section, not just the first" |
 | Raise Effort, Not Prose | Shallow reasoning at `low`/`medium` | Sonnet 5 | Raise effort instead of adding "think carefully" |
@@ -323,6 +338,19 @@ Reusing a 4.x snippet on a 5-gen model is the most common way to make a prompt w
 10. For code review, ask for coverage and filter downstream
 11. For vision work, give crop/analyze/verify tools rather than raising thinking
 
+**For Opus 5.5** (start from the Opus 5 list above, then):
+1. Remove `thinking: disabled` / `budget_tokens`, forced `tool_choice` (`any`/`tool`), sampling params, and prefill — all 400; use structured outputs or strict tools
+2. Set `effort` explicitly — default is `medium`; start there and sweep, reserve `xhigh`/`max` for measured gains. Replaces step 8 above
+3. Delete instructions that ask for reasoning in the response text and any "don't think" rule; re-test the Opus 5 thinking-disabled mitigations
+4. If the client renders text between tool calls, set `display: "updates"` before touching the prompt; ask explicitly for the update cadence you want
+5. For unattended agents, add continuation logic in the harness and the named-early-stops instruction at the end of the system prompt from the first request — not for human-in-the-loop products
+6. Multi-app automation: add the explore-broadly instruction; keep untrusted content out of searched sources
+7. Multi-agent teams: add an elapsed-time / budget line; keep a hard timeout
+8. Chat: remove "think carefully" lines; optionally add the settled-answers instruction
+9. Wrap user-pasted content in `<pasted_content>` tags with a random id, plus the system-prompt note
+10. Vision: re-test existing scaffolding; keep image tools only for the densest inputs
+11. Frontend: name the specific default styles to avoid and iterate
+
 **For Sonnet 5:**
 1. Remove non-default `temperature`/`top_p`/`top_k` — they return 400; move style control into the prompt
 2. For design/creative variety, use propose-then-pick rather than generic redirection
@@ -363,6 +391,7 @@ Route effort per role rather than uniformly; cost multiplies by agent count. Ext
 6. Specify format control using positive instructions
 7. Ground responses with `<investigate_before_answering>`
 8. Cut over-constraint before adding anything
+9. Never ask for internal reasoning in the response text on thinking-always-on models (Opus 5.5) — read summarized thinking instead
 
 ## Resources
 

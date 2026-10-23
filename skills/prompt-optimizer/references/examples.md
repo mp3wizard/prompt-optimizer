@@ -3,6 +3,7 @@
 Detailed before/after examples demonstrating optimization techniques across different prompt types.
 
 - **Examples 1–6** apply across current Claude models. Each carries model-specific notes where Opus 5 or Sonnet 5 needs different tuning from 4.x.
+- **Example 10** is an **Opus 5.5** unattended agentic task — what to write, and which familiar lines to leave out.
 - **Examples 7–9** are **legacy Opus 4.7** cases, retained for prompts still targeting that model. Their subagent, tool-use, and self-verification advice **inverts** on Opus 5 — see `model-techniques.md` before reusing them.
 
 ---
@@ -275,6 +276,7 @@ This is a comprehensive task. Plan your work clearly, spend your entire context 
 ### Model-specific notes
 
 - **Opus 5**: Add a scope-discipline clause so it delivers this task and not an adjacent, larger one, and add a subagent **ceiling** — Opus 5 over-delegates where 4.7 under-delegated. Do **not** add a "verify your work" line; it verifies on its own and the instruction causes over-verification. Start at `effort=xhigh` for coding, then sweep down. See `model-techniques.md`.
+- **Opus 5.5**: Same as Opus 5, except start at `effort=medium` (the default; it matches or beats Opus 5 at `high` on coding and knowledge-work evals) and sweep — not `xhigh`. If this runs unattended, add harness continuation for text-only `end_turn` progress reports. See the Opus 5.5 section of `model-techniques.md`.
 - **Sonnet 5**: Add literal scope statements to prevent narrowing ("Implement **all** CRUD endpoints for every resource, not just tasks"). Run at `effort=high`, `xhigh` for the hardest work — and raise effort rather than adding "think carefully" prose if reasoning comes back shallow. Remove any non-default `temperature`/`top_p`/`top_k`; they return 400.
 - **Opus 4.6 (legacy)**: This prompt works well, but 4.6 may overengineer — consider appending the overengineering-curb prompt (scope / documentation / defensive coding / abstractions) from `model-techniques.md`. 4.6 may also over-delegate to subagents for simple exploration.
 - **Opus 4.7 (legacy)**: Add literal scope statements. Run at `effort=xhigh` for coding. 4.7 spawns **fewer** subagents by default — if you want fanout, say so explicitly. Do not carry that encouragement to Opus 5.
@@ -521,3 +523,77 @@ After listing all findings above, flag with [BLOCKING] any that could cause: inc
 - Recall recovers (and typically exceeds 4.6 baseline) because 4.7's actual bug-finding ability surfaces
 - Precision stays workable because ranking happens downstream (or via a concrete `[BLOCKING]` bar)
 - Coverage is auditable — the "investigated but clean" list lets you spot-check what was missed
+
+---
+
+## Example 10: Opus 5.5 Unattended Migration Agent
+
+### Before
+
+```
+Think step by step and reason carefully before each change. Migrate our authentication
+system to OAuth. Use parallel subagents wherever possible. When you're done, double-check
+everything and verify your work thoroughly. Show your reasoning for each decision.
+```
+
+### After
+
+System prompt (set from the first request; the last paragraph is the condensed unattended-run instruction from `model-techniques.md`):
+
+```
+<context>
+Repository: /srv/app. Auth code lives in src/auth/; integration tests in tests/auth/.
+The legacy session adapter (src/auth/legacy_session.py) must be removed, not wrapped.
+</context>
+
+<constraints>
+Do not change the public user-model schema. Ask before deleting data, force-pushing,
+or modifying anything outside this repository; otherwise keep going without checking in.
+</constraints>
+
+<final_response>
+When finished: what changed, which checks you ran and their results, anything you could
+not confirm, and any decision that needs me.
+</final_response>
+
+This agent runs unattended. A message with no tool call ends your turn and the work stops.
+While requested work is still owed, do not end a turn with a summary that announces the
+next step, an offer to continue, a list of non-blocking decisions, or a pause because a
+milestone is done. Put status notes in the same message as your next tool call. End the
+turn only when nothing can move without me. This does not override confirmation for
+risky or destructive actions.
+```
+
+Task message:
+
+```
+Migrate the authentication system to OAuth.
+
+Done means:
+- Every endpoint under src/auth/ authenticates through OAuth.
+- `pytest tests/auth -q` exits 0, and the new OAuth flows have tests.
+- `grep -rn legacy_session src/` returns nothing.
+- docs/auth.md describes the OAuth flow.
+
+Track these items in TASKS.md and keep it current.
+```
+
+Request settings: `effort: "medium"` (the default — raise only if evals show a gain), no `thinking` field, `max_tokens` sized for long agentic turns, `display: "updates"` if the UI shows progress. Harness: on a text-only `end_turn` with unchecked items in TASKS.md, send one continuation message naming them; stop after three.
+
+### Opus 5.5 Techniques Applied
+- **Finish line as observables** — the `Done means` list is what both the model and the harness check against; it replaces "double-check everything"
+- **Named stop conditions** — the risky actions that still need a human, and permission to proceed on everything else
+- **Persistent checklist** (TASKS.md) — durable state that survives compaction and gives the harness an objective completion test
+- **Unattended-run instruction + harness continuation** — handles text-only `end_turn` progress reports
+- **Final-report shape** — plays to Opus 5.5's plain-language reporting: done / checked / unconfirmed / needs you
+
+### Deliberately removed
+- "Think step by step… reason carefully" — thinking is always on; effort is the control
+- "Show your reasoning for each decision" — can be declined as `reasoning_extraction`; the final report asks for outcomes instead
+- "Double-check everything and verify your work" — on Opus 5 this caused over-verification, and Opus 5.5 starts from that guidance; the `Done means` checks replace it
+- "Use parallel subagents wherever possible" — Opus 5's delegation ceiling still applies; the model fans out on its own where the work warrants it. Speed up a team with a time budget (`elapsed 340s / 1200s`) rather than a push to delegate
+
+### Expected Output Changes
+- Runs to completion instead of stopping after a progress report
+- Completion is checkable from the outside without reading the diff
+- Fewer tokens than running at an inherited `xhigh`, since on coding evals `medium` already matches or beats Opus 5 at `high`

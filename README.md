@@ -8,7 +8,7 @@ Most prompt-engineering advice was written for the 4.x generation and **inverts*
 
 | Area | What it does |
 |---|---|
-| **Model-specific tuning** | Opus 5, Sonnet 5, Fable 5 — and legacy 4.x, marked as legacy |
+| **Model-specific tuning** | Opus 5.5, Opus 5, Sonnet 5, Fable 5 — and legacy 4.x, marked as legacy |
 | **Inverted patterns** | Flags 4.x advice that now makes prompts *worse* (see below) |
 | **Agent orchestration** | Controller prompts, worker briefs, and verification for multi-model stacks — including non-Claude executors |
 | **Deconstraint passes** | Rightsizing system prompts, skills, and `CLAUDE.md` — where the correct edit is a deletion |
@@ -24,6 +24,8 @@ Reusing a 4.x snippet on a 5-generation model is the most common way to make a p
 | Self-verification | Helps | **Causes over-verification → delete** |
 | Progress updates | May need forcing | Narrates on its own → **remove scaffolding** |
 | Rules vs judgment | Explicit rules help | Over-constraint hurts → **deconstrain** |
+
+**Opus 5.5** inherits the Opus 5 column. On top of it: effort starts at `medium` (not `xhigh`), thinking cannot be disabled, and an agent that looks silent usually needs `display: "updates"` rather than a prompt change.
 
 The self-verification row is the counterintuitive one: "ask the model to double-check its work" is standard advice, and it is wrong on Opus 5.
 
@@ -52,6 +54,7 @@ The skill triggers on its own when you ask to improve, optimize, analyze, or wri
 Typical asks it handles:
 
 - "Optimize this system prompt for Opus 5"
+- "Migrate my Opus 5 agent prompt to Opus 5.5 — it stops partway through unattended runs"
 - "My CLAUDE.md has grown across three model upgrades — rightsize it"
 - "Write the controller prompt and worker brief for an Opus 5 → Sonnet 5 stack"
 - "Why is my agent spawning so many subagents?"
@@ -67,9 +70,26 @@ skills/prompt-optimizer/
     examples.md                     before-after optimization examples
 ```
 
+## Changelog
+
+**2.1.0** — Claude Opus 5.5 support, from Anthropic's *Prompting Claude Opus 5.5* guide and the Opus 5.5 migration guide:
+
+- New "Opus 5.5 — Delta over Opus 5" section: request-level 400s (thinking cannot be disabled, no forced `tool_choice`), effort recalibration (default `medium`), migrating thinking-disabled prompts, unattended-run continuation, progress updates in `thinking` blocks, multi-app exploration, time budgets for agent teams, chat thinking instructions, `<pasted_content>` marking, safeguard refusals, vision, and frontend defaults
+- Opus 5 advice that changes on 5.5 is now scoped to Opus 5 (the `xhigh` effort start, thinking-disabled repairs, manual CoT); "remove progress scaffolding / default to silence" is qualified with a rendering check first
+- Opus 5.5 playbook, quick-reference rows, orchestration guidance (controller effort, `end_turn` handling, time signals), and a worked example of an unattended migration agent
+
+**2.0.0** — 5-generation rewrite: Opus 5, Sonnet 5, Fable 5, agent orchestration, deconstraint passes.
+
+To update an existing install:
+
+```bash
+claude plugin marketplace update prompt-optimizer
+claude plugin update prompt-optimizer@prompt-optimizer
+```
+
 ## Sources
 
-Guidance is derived from Anthropic's official prompting documentation for Claude Opus 5, Sonnet 5, and Fable 5, plus the published context-engineering guidance for the 5 generation. Model-behaviour claims trace to those sources rather than to folklore.
+Guidance is derived from Anthropic's official prompting documentation for Claude Opus 5.5, Opus 5, Sonnet 5, and Fable 5, plus the published context-engineering guidance for the 5 generation. Model-behaviour claims trace to those sources rather than to folklore.
 
 ## License
 

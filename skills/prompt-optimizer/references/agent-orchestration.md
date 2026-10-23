@@ -2,7 +2,7 @@
 
 Patterns for the orchestration shape where **one model plans and judges** and **other models do the typing**:
 
-- **Controller** — Claude Opus 5. Holds the goal, decides scope, writes the briefs, verifies the results.
+- **Controller** — Claude Opus 5 or Opus 5.5. Holds the goal, decides scope, writes the briefs, verifies the results.
 - **Claude workers** — Claude Sonnet 5 subagents. Share the harness and tool surface; inherit no conversation context beyond the brief you write.
 - **External workers** — a Codex CLI executor (or any non-Claude coding agent). Separate process, separate sandbox, **zero** conversation context.
 
@@ -160,6 +160,16 @@ state plainly what is missing and why.
 
 The "finish the whole task / report completion only when done" clause is doing separate work from the scope clause — it covers premature "done" claims, which scope wording alone does not.
 
+### Opus 5.5 controllers: a progress report is not a finish line
+
+On long multi-part tasks Opus 5.5 keeps the user updated, and some of those updates end the turn with text and no tool call (`stop_reason: "end_turn"`). An unattended orchestration loop that reads that as completion stops with workers' results still owed. Handle it in the harness, not the brief:
+
+- Keep the run's parts in a checklist the controller updates. If a turn ends with open items and no stated blocker, send a short user message naming them; cap automatic continuations at two or three so a stuck run ends and can be reviewed.
+- If a worker or background command is still running, wait for it and return its output as the next user message rather than closing the task.
+- For fully unattended runs, add the named-early-stops instruction at the end of the controller's system prompt from the first request (snippet in `model-techniques.md`, "Unattended agentic runs"). Keep your own confirmation step for irreversible actions.
+
+**Time signals speed up a team.** Opus 5.5 is highly responsive to elapsed time. Have the harness append elapsed time against a budget to each message it returns to the controller — e.g. `elapsed 340s / 1200s` — and it paces the team, mostly by keeping more workers running in parallel. Set the budget somewhat above the time you want, tune it on samples, and keep a hard timeout of your own: the budget is advisory. Without a sensible budget, show elapsed time alone plus one "time matters" sentence in the system prompt. Check answer quality, since under time pressure it may search and verify a little less.
+
 ---
 
 ## 6. Effort routing across the stack
@@ -169,11 +179,14 @@ Effort is the primary cost lever in an orchestration shape, because it applies p
 | Role | Start at | Notes |
 |---|---|---|
 | Controller (Opus 5) | `high` | Planning and judging. `xhigh` only for genuinely hard architecture decisions. |
+| Controller (Opus 5.5) | `medium` | The default, and it matches or beats Opus 5 at `high` on coding and knowledge-work evals. Opus 5.5 thinks more per level, so an inherited `high`/`xhigh` costs more. Raise only where evals show a gain. |
 | Worker — hard coding (Sonnet 5) | `xhigh` | The hardest coding and agentic work. |
 | Worker — routine edits (Sonnet 5) | `high` → sweep down | Default. `medium` ≈ Sonnet 4.6 at `high`. |
 | Worker — mechanical fan-out | `low` / `medium` | Both models are unusually strong at the low end; re-check quality on your own evals before assuming you need more. |
 
 Effort defaults carried over from a prior model generation are rarely the right setting. Sweep on your own evals rather than inheriting.
+
+On Opus 5.5 thinking is always on, so effort is the only thinking control; change it mid-conversation with a per-message effort change (beta) rather than the top-level parameter, which invalidates the prompt cache.
 
 **Effort does not control visible response length** on Opus 5 — lowering it to get shorter output does not reliably work. Use an explicit conciseness instruction for length and effort for depth.
 
@@ -189,6 +202,7 @@ Effort defaults carried over from a prior model generation are rarely the right 
 | "Verify your work carefully" in the controller prompt | Causes over-verification on Opus 5 | Delete it; verify *workers* instead (§3) |
 | Unscoped negative constraint in a worker brief | External executors generalize cautions | Say where the caution does not apply (§2) |
 | Same effort for every agent | Multiplies cost across the fleet | Route effort by role (§6) |
+| Loop treats a text-only `end_turn` as done | Opus 5.5 ends turns with progress reports; the run stops partway | Checklist + continuation message, capped at 2–3 (§5) |
 | Controller re-doing a worker's task after reading its report | Pays for the work twice | "If you delegate, commit to the delegation" (§1) |
 
 ---
@@ -202,5 +216,6 @@ Effort defaults carried over from a prior model generation are rarely the right 
 - [ ] Every worker brief has a `Done means` line that names an observable
 - [ ] Negative constraints in briefs state where they do **not** apply
 - [ ] Sonnet 5 briefs state scope explicitly ("every handler, not only the first")
-- [ ] Effort routed per role, not uniform
+- [ ] Effort routed per role, not uniform (Opus 5.5 controller starts at `medium`)
+- [ ] Unattended Opus 5.5 loop has continuation logic and a hard timeout
 - [ ] Verification re-runs the claimed check rather than reading the report
