@@ -2,9 +2,9 @@
 
 Detailed before/after examples demonstrating optimization techniques across different prompt types.
 
-- **Examples 1–6** apply across current Claude models. Each carries model-specific notes where Opus 5 or Sonnet 5 needs different tuning from 4.x.
+- **Examples 1–6** apply across current Claude models. Each carries model-specific notes where Opus 5.5 or Sonnet 5.5 needs different tuning from 4.x.
 - **Example 10** is an **Opus 5.5** unattended agentic task — what to write, and which familiar lines to leave out.
-- **Examples 7–9** are **legacy Opus 4.7** cases, retained for prompts still targeting that model. Their subagent, tool-use, and self-verification advice **inverts** on Opus 5 — see `model-techniques.md` before reusing them.
+- **Examples 7–9** are **legacy Opus 4.7** cases, retained for prompts still targeting that model. Their subagent, tool-use, and self-verification advice **inverts** on Opus 5.5 — see `model-techniques.md` before reusing them.
 
 ---
 
@@ -275,11 +275,9 @@ This is a comprehensive task. Plan your work clearly, spend your entire context 
 
 ### Model-specific notes
 
-- **Opus 5**: Add a scope-discipline clause so it delivers this task and not an adjacent, larger one, and add a subagent **ceiling** — Opus 5 over-delegates where 4.7 under-delegated. Do **not** add a "verify your work" line; it verifies on its own and the instruction causes over-verification. Start at `effort=xhigh` for coding, then sweep down. See `model-techniques.md`.
-- **Opus 5.5**: Same as Opus 5, except start at `effort=medium` (the default; it matches or beats Opus 5 at `high` on coding and knowledge-work evals) and sweep — not `xhigh`. If this runs unattended, add harness continuation for text-only `end_turn` progress reports. See the Opus 5.5 section of `model-techniques.md`.
-- **Sonnet 5**: Add literal scope statements to prevent narrowing ("Implement **all** CRUD endpoints for every resource, not just tasks"). Run at `effort=high`, `xhigh` for the hardest work — and raise effort rather than adding "think carefully" prose if reasoning comes back shallow. Remove any non-default `temperature`/`top_p`/`top_k`; they return 400.
-- **Opus 4.6 (legacy)**: This prompt works well, but 4.6 may overengineer — consider appending the overengineering-curb prompt (scope / documentation / defensive coding / abstractions) from `model-techniques.md`. 4.6 may also over-delegate to subagents for simple exploration.
-- **Opus 4.7 (legacy)**: Add literal scope statements. Run at `effort=xhigh` for coding. 4.7 spawns **fewer** subagents by default — if you want fanout, say so explicitly. Do not carry that encouragement to Opus 5.
+- **Opus 5.5**: Add a scope-discipline clause so it delivers this task and not an adjacent, larger one, and add a subagent **ceiling** — the Opus 5 line over-delegates where 4.7 under-delegated. Do **not** add a "verify your work" line; it verifies on its own and the instruction causes over-verification. Start at `effort=medium` (the default) and sweep — not `xhigh`. If this runs unattended, add harness continuation for text-only `end_turn` progress reports. See `model-techniques.md`.
+- **Sonnet 5.5**: Add literal scope statements to prevent narrowing ("Implement **all** CRUD endpoints for every resource, not just tasks"). Start at `effort=medium` for this well-specified agentic task, `high` if it is long or hard; at `low`/`medium` add the keep-working clause, and at `low` the real-check instruction — the opposite of Opus. Remove any `temperature`/`top_p`/`top_k`; they return 400.
+- **Opus 4.7 (legacy)**: Add literal scope statements. Run at `effort=xhigh` for coding. 4.7 spawns **fewer** subagents by default — if you want fanout, say so explicitly. Do not carry that encouragement to Opus 5.5.
 
 ---
 
@@ -590,8 +588,8 @@ Request settings: `effort: "medium"` (the default — raise only if evals show a
 ### Deliberately removed
 - "Think step by step… reason carefully" — thinking is always on; effort is the control
 - "Show your reasoning for each decision" — can be declined as `reasoning_extraction`; the final report asks for outcomes instead
-- "Double-check everything and verify your work" — on Opus 5 this caused over-verification, and Opus 5.5 starts from that guidance; the `Done means` checks replace it
-- "Use parallel subagents wherever possible" — Opus 5's delegation ceiling still applies; the model fans out on its own where the work warrants it. Speed up a team with a time budget (`elapsed 340s / 1200s`) rather than a push to delegate
+- "Double-check everything and verify your work" — over-verification was documented on Opus 5, and Opus 5.5 starts from that guidance; the `Done means` checks replace it
+- "Use parallel subagents wherever possible" — the Opus 5 line's delegation ceiling still applies; the model fans out on its own where the work warrants it. Speed up a team with a time budget (`elapsed 340s / 1200s`) rather than a push to delegate
 
 ### Expected Output Changes
 - Runs to completion instead of stopping after a progress report

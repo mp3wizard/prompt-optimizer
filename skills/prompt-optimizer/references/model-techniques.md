@@ -1,12 +1,14 @@
 # Claude Model Optimization Techniques
 
-Complete patterns and code examples for optimizing prompts across current Claude models. The **5 generation** — **Opus 5.5**, **Opus 5**, **Sonnet 5**, **Fable 5** — is the primary target; the **4.x family** (Opus 4.8 / 4.7 / 4.6, Sonnet 4.6, Haiku 4.5) is retained for prompts not yet migrated.
+Complete patterns and code examples for optimizing prompts across current Claude models. The **5 generation** — **Opus 5.5**, **Sonnet 5.5**, **Fable 5** — is the primary target; the **4.x family** (Opus 4.8 / 4.7 / 4.6, Sonnet 4.6, Haiku 4.5) is retained for prompts not yet migrated.
 
 All current models share common behaviors (explicit following, attention to examples, XML-responsiveness), but each has distinct shifts that need targeted tuning. Start from "Common principles", then apply the model-specific section for your target.
 
-> **If you are tuning a prompt written for Opus 4.7 or 4.8, several of its patterns now invert.** The most consequential: 4.7 needed *encouragement* to delegate and use tools; Opus 5 needs a *ceiling*. And instructions telling the model to verify its own work, which helped on prior models, now cause over-verification. See "Opus 5 — Behavior Shifts" below before reusing 4.x snippets.
+> **If you are tuning a prompt written for Opus 4.7 or 4.8, several of its patterns now invert.** The most consequential: 4.7 needed *encouragement* to delegate and use tools; the Opus 5 line needs a *ceiling*. And instructions telling the model to verify its own work, which helped on prior models, cause over-verification on Opus. See "Opus 5.5 — Behavior Shifts & Tuning" before reusing 4.x snippets.
 >
-> **Opus 5.5 is a delta over Opus 5, not a reset.** Opus 5 prompts carry over and the Opus 5 patterns remain the starting point. What changes is mostly at the request and harness level — thinking can no longer be disabled, effort defaults to `medium`, and progress updates arrive in `thinking` blocks. Read "Opus 5.5 — Delta over Opus 5" first, then the Opus 5 section.
+> **Opus 5.5 and Sonnet 5.5 diverge on several axes** that older "5-gen" advice treats as one: self-verification, "think" instructions, tool eagerness, vision tooling, turning thinking off, and harness text after tool results. Check "Opus 5.5 vs Sonnet 5.5" before applying a pattern to both.
+>
+> Opus 5 and Sonnet 5 are no longer targets here. Their documented patterns survive where Anthropic's 5.5 guides call them the starting point — folded in below as "Inherited from Opus 5" / "Inherited from Sonnet 5" — and as migration rows.
 
 ---
 
@@ -17,8 +19,7 @@ All current models share common behaviors (explicit following, attention to exam
 | Model | String | Best for | Notable default |
 |---|---|---|---|
 | Claude Opus 5.5 | `claude-opus-5-5` | Agentic coding and code review, long unattended runs, knowledge work (financial models, large inputs), charts/diagrams/computer use | **Thinking always on** (`disabled` = 400); **effort default `medium`**; 30%+ faster output than Opus 5, fewer tokens per task; $4 / $20 per M tokens; 1M context |
-| Claude Opus 5 | `claude-opus-5` | Complex agentic coding, long-horizon autonomous work, enterprise/knowledge work, multi-agent coordination | **Thinking on by default**; delegates readily; verbose; 1M context; effort `high` |
-| Claude Sonnet 5 | `claude-sonnet-5` | Coding and agentic work at volume; near-Opus quality at Sonnet cost | Adaptive thinking on by default; **non-default sampling params rejected**; effort `high` |
+| Claude Sonnet 5.5 | `claude-sonnet-5-5` | Coding and agentic work at volume, chat, knowledge work; an Opus model is the better choice for the hardest long-horizon work | Adaptive thinking on by default; lowest setting `between_tools` (`disabled` = 400); **effort default `high`**, levels recalibrated; forced `tool_choice` = 400; cache reads $0.10 / M, 512-token cache minimum |
 | Claude Fable 5 | `claude-fable-5` | The most demanding reasoning and longest-horizon agentic work | Thinking always on (cannot be disabled); raw chain of thought never returned; requires 30-day data retention |
 
 ### Prior generation (4.x — legacy targets)
@@ -58,7 +59,7 @@ What to cut when optimizing a system prompt, skill, or `CLAUDE.md` for a 5-gen m
 - **Absolute rules that are not absolutely true.** "In code: default to writing no comments. NEVER write multi-line comment blocks." Replaced by stating the goal and letting the model read the surrounding code.
 - **Rules duplicated across layers.** The same constraint in the system prompt, a skill, and `CLAUDE.md` is three chances to conflict.
 - **Aggressive emphasis.** `CRITICAL:`, `YOU MUST`, `ALWAYS`, `NEVER`, `If in doubt, use X`. These were written to overcome earlier models' reluctance and now overtrigger.
-- **Scaffolding the model no longer needs.** Forced progress updates ("summarize every 3 tool calls"), self-verification steps, "double-check before answering".
+- **Scaffolding the model no longer needs.** Forced progress updates ("summarize every 3 tool calls"), self-verification steps, "double-check before answering". **Exception — Sonnet 5.5 at `low` effort** can report a code change done without running a check; there, a "run a real check before reporting done" instruction earns its place (see the Sonnet 5.5 section).
 
 What to keep:
 
@@ -148,9 +149,9 @@ Find quotes from the patient records and appointment history that are relevant t
 
 ---
 
-## Opus 5.5 — Delta over Opus 5
+## Opus 5.5 — Behavior Shifts & Tuning
 
-Opus 5.5 runs existing Opus 5 prompts well without changes; the Opus 5 section below stays the baseline. This section covers only what is new or different. Source: [Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5) and the [Opus 5.5 migration guide](https://platform.claude.com/docs/en/models/opus-5-5/migration-guide). The snippets here are condensed; the linked sections hold the canonical wording.
+Opus 5.5 runs existing Opus 5 prompts well without changes, and Anthropic calls the Opus 5 patterns a reasonable starting point. The first part of this section covers what is new on 5.5; "Inherited from Opus 5" at the end carries the Opus 5 patterns that still apply. Source: [Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5) and the [Opus 5.5 migration guide](https://platform.claude.com/docs/en/models/opus-5-5/migration-guide). The snippets here are condensed; the linked sections hold the canonical wording.
 
 **Where it is stronger** (so scaffolding built for Opus 5 may be dead weight): multistep coding in a real repository (at `medium` it matched or beat Opus 5 at `high`, in fewer steps); code review (early testers reported more bugs caught and fewer false alarms); long unattended runs with parallel subagents; knowledge work — far fewer wrong figures or wrong citations, and it catches easy-to-miss details in large inputs; reading charts, diagrams, and screenshots; computer use.
 
@@ -308,36 +309,20 @@ off-white background, italic accent words in headlines, numbered "01/02/03" sect
 labels, monospace labels, or pill-shaped buttons.
 ```
 
-### Opus 5 patterns: what still holds on 5.5
+### Inherited from Opus 5
+
+Documented on Opus 5; the Opus 5.5 guide says these patterns remain a reasonable starting point and does not re-characterize them. Re-baseline on your own evals.
 
 | Opus 5 pattern | On Opus 5.5 |
 |---|---|
-| Delete self-verification instructions; scope discipline; deliverable-length; corrections instruction; conciseness instruction | Not re-characterized — keep the Opus 5 guidance as the starting point |
-| Subagent ceiling | Not re-characterized — keep it; use time signals to speed a team up |
-| Effort: start `xhigh` for coding | **Changed** — start `medium`, sweep; `xhigh`/`max` only with measured gains |
+| Delete self-verification instructions; scope discipline; deliverable length; corrections; conciseness | Keep as the starting point (below) |
+| Subagent ceiling | Keep; use time signals to speed a team up |
+| Effort: start `xhigh` for coding | **Replaced** — start `medium`, sweep (above) |
 | Thinking-disabled repairs | **Obsolete** — `disabled` is a 400; re-test, and remove any "don't think" rule |
 | Remove progress scaffolding / default to silence | **Qualified** — check `display: "updates"` first; explicit cadence instructions work |
 | Vision: tools rather than more thinking | **Qualified** — re-test scaffolding; tools help only on the densest inputs |
 
----
-
-## Opus 5 — Behavior Shifts & Tuning
-
-Opus 5 performs well out of the box on existing Opus 4.8 prompts. What follows is what *changed* — and several items are **deletions**, not additions.
-
-### Thinking is on by default
-
-A request that omits the `thinking` parameter **thinks**. On Opus 4.8 and 4.7, omitting it meant no thinking. Two consequences for prompt work:
-
-- `max_tokens` caps thinking **plus** response text. A prompt sized tightly around its answer on 4.8 can now truncate mid-response.
-- Disabling thinking (`thinking: {type: "disabled"}`) is only available at effort **`high` or lower**. Pairing it with `xhigh`/`max` is a 400, validated per request.
-
-Prefer lowering effort over disabling thinking. (Opus 5 only — on Opus 5.5, `disabled` is a 400 at every effort level; see the Opus 5.5 section for migrating these prompts.) Disabled thinking on Opus 5 has two failure modes that no prompt fully fixes:
-
-1. **Tool calls arrive as plain text.** The model writes the call into its visible response instead of emitting a structured tool-use block. The turn completes normally, the call never runs, and nothing errors — in an agentic loop the bogus text stays in history and skews later turns. Mitigation, if you cannot enable thinking: `You may say a brief sentence before using a tool.`
-2. **`<thinking>` tags leak into output.** Two counterintuitive rules: **delete** any instruction telling the model not to think or reason (it makes leakage worse), and write the instruction generically — `Do not include internal or system XML tags in your response.` Naming thinking tags specifically is measurably less effective.
-
-### Response length is up — and effort will not fix it
+#### Response length is up — and effort will not fix it
 
 Default response text is longer than prior models. **`effort` is not the lever** — changing it moves thinking volume without reliably changing visible output length. Prompting is:
 
@@ -356,7 +341,7 @@ Keep outputs reasonably concise.
 </tone_preference>
 ```
 
-### Written deliverables run long
+#### Written deliverables run long
 
 Separate from conversational verbosity: files written to disk — reports, Markdown, summaries — are longer than on prior models. If your product ships model-authored documents:
 
@@ -366,13 +351,13 @@ needs: cover the substance, but do not pad documents with filler sections, redun
 summaries, or boilerplate.
 ```
 
-### Over-verification — delete your verification instructions
+#### Over-verification — delete your verification instructions
 
 Opus 5 verifies its own work without being asked. Instructions that *tell* it to verify — "include a final verification step for any non-trivial task", "use a subagent to verify", and per-prompt phrasing like "double-check your answer" — now cause over-verification. **Removing them reduces over-verification with no capability regression.** This is a delete, not a rewrite, and it applies to harness-level verification steps carried over from prior models too.
 
 > This **inverts a standard prompting best practice.** "Ask the model to self-check" is generally sound advice and is wrong on this model. A prompt library that applies it uniformly needs a carve-out, not a global rule.
 
-### Task scope expansion
+#### Task scope expansion
 
 Opus 5 can add steps the user did not request, or apply its own judgment about what the task should be without saying so. In testing this instruction reduced scope changes to nearly zero without producing excessive clarifying questions:
 
@@ -390,11 +375,11 @@ implies.
 
 The "finish the whole task" clause does separate work from the scope clause: it covers premature "done" claims, which scope wording alone does not.
 
-### Delegates to subagents readily — the opposite of 4.7/4.8
+#### Delegates to subagents readily — the opposite of 4.7/4.8
 
 **Direction change.** Opus 4.7 and 4.8 *under*-delegated and needed prompting to fan out. Opus 5 reaches for subagents freely, multiplying cost and latency. If you carried "delegate more" guidance forward from 4.8, **remove it** and add a ceiling. See `agent-orchestration.md` for the full controller-prompt block.
 
-### More narration between tool calls
+#### More narration between tool calls
 
 Opus 5 narrates what it is about to do, and per-message output in agentic sessions runs longer. If you added scaffolding to force interim status ("after every 3 tool calls, summarize"), **remove it** — the model does this on its own. For a coding agent that is too chatty:
 
@@ -409,7 +394,7 @@ The same lever runs the other way: this model responds well to explicit guidance
 
 On Opus 5.5, text between tool calls arrives in `thinking` blocks that are empty by default — if an agent *looks* silent, set `display: "updates"` before adding prompt text.
 
-### Narrates self-corrections at length
+#### Narrates self-corrections at length
 
 It flags and explains its own earlier mistakes in detail, which reads as thrash in a user-facing product:
 
@@ -428,18 +413,7 @@ correction.
 
 The second paragraph matters as much as the first: a plain follow-up question can otherwise trigger a re-audit of correct work.
 
-### Effort: sweep, don't inherit
-
-Opus 5 supports the full ladder — `low` / `medium` / `high` / `xhigh` / `max`, default `high`. Two directions pull against each other and both are worth knowing:
-
-- **Start at `xhigh` for coding and agentic work**, `high` for other intelligence-sensitive workloads. `max` for the deepest reasoning, where it can show diminishing returns and overthink simpler tasks.
-- **Then sweep downward** — `low` and `medium` punch well above their weight here, at a fraction of the tokens and latency. Step down where your evals show quality holds.
-
-Effort defaults carried over from a prior model are rarely the right setting. At `xhigh`/`max`, set a large `max_tokens` (start 64K) so the model has room to think and act across tool calls.
-
-> On Opus 5.5 the starting point moves: default `medium`, which matches or beats Opus 5 at `high` on coding and knowledge-work evals. Do not carry the `xhigh` start forward.
-
-### Code review
+#### Code review
 
 High precision *and* high recall. The 4.7-era caveat still applies and is worth restating: a review prompt saying "only report high-severity issues" or "be conservative" is followed **literally**, so measured recall drops even though bug-finding improved. Ask for coverage and filter downstream:
 
@@ -450,25 +424,158 @@ verification step will do that. For each finding, include your confidence level 
 estimated severity so a downstream filter can rank them.
 ```
 
-### Vision: give it tools, not more thinking
-
-Strong on chart, document, and diagram understanding and on UI replication. The highest-leverage change is **giving it tools to iteratively analyze, crop, and visually verify its own work** — tool use is a markedly more cost-effective lever than raising thinking. Re-validate any prompt-side workaround written for a prior model's vision limits; several are now counterproductive. (Opus 5.5 reads visual input well enough without tools that the scaffolding itself needs re-testing — see the Opus 5.5 section.)
-
-### Other prompt-relevant defaults
+#### Other prompt-relevant defaults
 
 - **1M context** as both default and maximum; instruction following and tool calling stay consistent across the window.
 - **Prompt cache minimum drops to 512 tokens** (from 1024 on Opus 4.8) — prompts previously too short to cache now cache with no code change.
 - **Long-horizon work:** give the complete task specification up front in one well-specified turn and let it run. Longer autonomous sessions show the strongest results; short interactive edits the least.
 
+
 ---
 
-## Sonnet 5 — Behavior Shifts & Tuning
+## Sonnet 5.5 — Behavior Shifts & Tuning
 
-Sonnet 5 performs well out of the box on existing Sonnet 4.6 prompts. Its strengths are coding and agentic work, at near-Opus quality for Sonnet cost.
+Existing Sonnet 5 prompts perform well without changes, and Anthropic calls the Sonnet 5 patterns a reasonable starting point ("Inherited from Sonnet 5" below). For the hardest long-horizon work, an Opus model is the better choice. Source: [Prompting Claude Sonnet 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5) and the [Sonnet 5.5 migration guide](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide). Snippets are condensed; the linked sections hold the canonical wording.
 
-### Sampling parameters are rejected
+### Request-level breaking changes (each is a 400)
 
-`temperature`, `top_p`, and `top_k` set to **non-default** values return a 400. Omitting them, or passing the default, is fine.
+| Setting | Sonnet 5 | Sonnet 5.5 | Replace with |
+|---|---|---|---|
+| `thinking: {type: "disabled"}` | Allowed | Rejected | `thinking: {type: "between_tools"}` (at `high` or below) |
+| `between_tools` at `xhigh`/`max`, or with `display`/`budget_tokens`/`block_binding` | — | Rejected | Adaptive thinking at those levels; send `between_tools` bare |
+| Per-message effort change under `between_tools` | — | Rejected | Adaptive thinking if effort must vary per turn |
+| `tool_choice` `any` / `tool` (incl. token counting) | Allowed | Rejected | `auto` plus strict tools |
+| `temperature` / `top_p` / `top_k`, thinking budgets, assistant prefill | Rejected | Rejected | Prompting; effort; structured outputs |
+| Computer use `computer_20251124` | Accepted | Rejected on the Claude API and Google-managed Cloud | `computer_toolset_20260801` (Bedrock keeps `computer_20251124`); drop `fine-grained-tool-streaming-2025-05-14` |
+| Replaying a thinking block after editing earlier history | — | 400 for accounts created on or after 2026-08-31 | Keep conversations append-only; change instructions with mid-conversation system messages |
+
+### Calibrate effort — levels are recalibrated
+
+Default on the Claude API is `high`, but a level does not produce the same thinking as on Sonnet 5 — re-sweep rather than carry settings over. Starting points:
+
+- **General work:** `high`.
+- **Agentic coding and multistep tool use:** `medium` for well-specified tasks, `high` for harder or longer ones.
+- **Chat and latency-sensitive work:** `medium` or `low` — from `medium` up it thinks briefly before almost every reply, even a greeting. At `low` it skips thinking on most simple requests.
+- **`xhigh` / `max`:** only with a measured gain; thinking and replies get much longer, and `between_tools` is not accepted there.
+- `max_tokens`: room for thinking plus reply (thinking counts even when not returned). For agentic coding, 128,000 (the maximum) and stream.
+- **Less thinking = lower effort.** Asking in the system prompt to think less does not reliably reduce it.
+- Changing top-level `effort` invalidates the prompt cache; use a per-message effort change (beta, adaptive thinking only) — e.g. step an interactive `low` session up to `high` for one hard question and back.
+
+Lower effort also changes *how* it finishes agentic work: at `low` it can skip verifying a change, and at `low`/`medium` on long tasks it is more likely to stop and check in early.
+
+### Steer initiative and scope
+
+How far it goes on its own depends on effort and request. Four situations, four prompt pieces:
+
+**Stops to check in early (`low`/`medium`, agentic coding).** Try higher effort first. To keep effort, add:
+
+```text
+Keep going until everything the user asked for is done; stop to ask only when you
+cannot continue without the user, or before a risky step.
+
+When the requested work is done and checked, stop and report. Don't add features,
+tests, files, docs, or refactors that weren't asked for — suggest them at the end.
+```
+
+Sessions at `low`/`medium` then run longer and cost more. It does not replace your rules on risky or irreversible actions.
+
+**Unrequested additions.** At every effort level (more at higher effort) it adds tests, docs, and small supporting files that fit the repository's conventions; the requested change itself stays close to the ask. Most teams welcome this. To limit changes to what was requested, use only the second paragraph above — at `xhigh`/`max` it also makes changes smaller overall.
+
+**Extra review rounds at `xhigh` / `max`.** After finishing it can start its own review and hardening rounds, sometimes with reviewer subagents. Run routine work at `high` or below. To keep the thoroughness but aim it at the task:
+
+```text
+When the requested work is done and its checks pass, stop and report. Don't start
+extra rounds of review or hardening on your own, and don't launch reviewer subagents
+unless the user asked for a review. If a deeper review seems worthwhile, say so at the end.
+```
+
+In testing at `max` this stopped reviewer subagents and cut session cost by about a third with no quality change; self-started review rounds by the main agent became less frequent but did not disappear.
+
+**Open-ended requests** ("show me what you can do with this") can turn into a built presentation or report when you wanted ideas. Say "ideas first" in the request, or add: `When the user asks for ideas, options, or a plan, give that and stop; don't build or change anything until they say go ahead.`
+
+### Running without up-front thinking — `between_tools`
+
+`thinking: {type: "between_tools"}` is the lowest thinking setting; it replaces `disabled`. Checklist:
+
+- Send it at `high` or below, with no other field. Effort cannot change mid-conversation under it.
+- **Remove any "don't think" instruction** — under `between_tools` it makes internal XML tags in visible output more likely.
+- Read responses by block type — a response can start with a progress-update `thinking` block. Pass thinking blocks back unchanged — a block you send back gives the model the full note it wrote, not the summary.
+- **For reasoning tasks without tools, use adaptive thinking instead** — in a tool-less request `between_tools` means it answers with no thinking at all.
+
+### Reasoning tasks with JSON output
+
+On JSON answers that need a few steps of working out (totaling figures, applying a rule, ranking), it often answers without thinking, especially at `low`/`medium`.
+
+- **Use structured outputs** where available. The response holds only JSON, so the working has to happen in thinking. With adaptive thinking, end the system prompt with `Think the problem through before you answer.` — at `high` this brings accuracy close to `xhigh` for a modest token increase; at `low`/`medium` it helps less and costs more. Or run `xhigh`, which is most accurate even without the line.
+- **Not `between_tools`** for these — the line has no effect there and accuracy is lower.
+- **Treat `stop_reason: "max_tokens"` as failed** even if the text parses as JSON, and retry. At `low`/`medium` with structured outputs it occasionally thinks until the cap; set `max_tokens` for thinking plus JSON, but no higher than one attempt is worth.
+- **Without structured outputs** it often works the problem in the response text, then writes the JSON. Parse the **last** JSON value (try a parse at each `{`/`[`, skip values nested in one already parsed, keep the last; for multiple records keep the last run separated only by whitespace, commas, or newlines), validate the fields, retry once. Don't slice first `{` to last `}` — a draft can precede the final JSON. Or use `xhigh` with adaptive thinking, which moves the working into thinking at about the same total tokens.
+
+> This is the one place to *add* a "think" instruction on a 5.5 model. On Opus 5.5 the advice for chat runs the other way — remove "think carefully" lines.
+
+### User-facing progress updates
+
+Notes longer than a sentence or two between tool calls come back as progress-update `thinking` blocks (empty at the default display); shorter remarks stay `text`. With adaptive thinking set `display: "updates"` (beta header `thinking-display-updates-2026-08-18`) for the updates alone, or `"summarized"` for updates mixed with reasoning; under `between_tools` the summaries arrive without `display`.
+
+- Remove older "hold all findings for the final response" instructions; ask for a predictable cadence if you want one (it follows such instructions).
+- Give it a send-message tool for exact text mid-turn (a snippet, a question it needs answered), declared in the first request.
+- Harness reminder after ~five silent tool-calling steps, as a turn-scoped system message, left in place; stop after two or three. At `high` with a send-message tool it raised update frequency and shortened silent stretches with no quality change. Keep reminders rare — see mid-turn messages below.
+
+### Tool use in chat and knowledge work
+
+It sometimes answers from training knowledge where a search would catch details that changed (what is allowed, required, or charged). First **remove tool-discouraging language** ("only use tools when strictly necessary", "minimize tool calls"). Then, if the product has a search tool:
+
+```text
+Use the search tool to check specifics that may have changed since your training —
+what is allowed, required, or charged — even when you feel confident. For researched
+work such as a report or comparison, gather current sources instead of writing from
+training knowledge.
+```
+
+### Mid-turn user messages — keep harness text away from tool results
+
+Trained to resist indirect prompt injection, it sometimes treats a **genuine** user message as an injection when the message arrives right after a tool result — and may ignore it or ask the user to confirm. Triggers: user text inside a `tool_result`, a mid-conversation system message carrying user text after a tool result, a per-step token countdown, or harness instructions appended on every step.
+
+- Never put user text inside a `tool_result` block.
+- Deliver mid-turn input as user text: a text block in the user message that carries the `tool_result` blocks, after the last one.
+- Put harness notices in a separate mid-conversation system message after the user's words; never in the same block.
+- In interactive sessions, no custom token or budget countdown after tool results. Task budgets (beta) have not been seen to cause it; drop one if you see the misread.
+
+### Verification on coding tasks — add a real-check instruction
+
+It generally checks its work before reporting done — except at `low`, where it can skip the check (e.g. because dependencies are not installed). If transcripts show "done" without test or build output, add:
+
+```text
+When you change code that can be run, built, or type-checked, run a real check that
+exercises the change before calling it done — the project's tests, type-checker, build,
+or the changed command. A syntax-only check or a check that failed to start does not
+count. If only the project's declared dependencies are missing, install them with its
+own package manager and lockfile, never with sudo or the system package manager, unless
+told not to. If no real check can run, say which one you skipped and why instead of
+reporting done.
+```
+
+At `low` it made skipped checks rare at a slightly higher cost per task. **This inverts the Opus guidance** to delete verification instructions — scope it to Sonnet 5.5.
+
+### Tolerant tool-call handling
+
+It occasionally calls a tool with the wrong letter case (`bash` for `Bash`) or passes a known parameter under a slightly different name. In the harness, accept unambiguous case mismatches, or return `is_error: true` with the exact expected name — it usually corrects on the next turn.
+
+### Visual inputs — tools beat effort on charts
+
+For dense charts and technical drawings, give it a way to crop, zoom, or run code on the image. On charts the tools help at every effort level — with tools at `high` it beat no-tools at `max`, at a fraction of the cost. On technical drawings they help only from `high` up, most at `xhigh`/`max`.
+
+### Safeguard refusals
+
+`stop_reason: "refusal"` with `stop_details.category`: `cyber`, `bio`, `frontier_llm` (helping develop competing AI models), `reasoning_extraction`, `general_harms` (benign work can trigger it). It declines in more categories than Sonnet 5. Server-side fallback (beta) retries `cyber` and `frontier_llm` on Sonnet 5 only. Remove instructions that ask for reasoning in the response; read `display: "summarized"` thinking instead.
+
+### Inherited from Sonnet 5
+
+Documented on Sonnet 5; the Sonnet 5.5 guide calls these a reasonable starting point.
+
+#### Sampling parameters are rejected
+
+Sonnet 5.5 rejects `temperature`, `top_p`, and `top_k` as well — omit them.
 
 This matters for prompt work because style variety that used to come from `temperature` must now come from the prompt. For design and creative tasks, the reliable substitute is **propose-then-pick**:
 
@@ -480,26 +587,7 @@ implement only that direction.
 
 Generic redirection ("don't use that color", "make it clean and minimal") tends to move the model to a *different* fixed default rather than producing variety.
 
-### Adaptive thinking is on by default
-
-A request with no `thinking` field runs with adaptive thinking; on Sonnet 4.6 it ran without. Same `max_tokens` consequence as Opus 5 — the cap covers thinking plus response.
-
-`thinking.display` defaults to `"omitted"` (Sonnet 4.6 defaulted to `"summarized"`). If you stream reasoning to users, set `display: "summarized"` explicitly — otherwise thinking blocks stream with empty text and the UI shows a long pause before output.
-
-### Effort is the primary lever
-
-Defaults to `high`, same as Sonnet 4.6. Raise to `xhigh` for the hardest coding and agentic work.
-
-Rough cross-model mapping when migrating: **Sonnet 5 at `medium` ≈ Sonnet 4.6 at `high`**, and **Sonnet 5 at `high` ≈ Sonnet 4.6 at `max`**. When benchmarking, match by observed thinking length rather than effort name.
-
-Sonnet 5 respects effort **strictly at the low end** — at `low`/`medium` it scopes work to what was asked rather than going above and beyond. If you see shallow reasoning on complex problems, **raise effort rather than prompting around it**. If latency forces `low`:
-
-```text
-This task involves multistep reasoning. Think carefully through the problem before
-responding.
-```
-
-### More literal instruction following
+#### More literal instruction following
 
 Sonnet 5 does not silently generalize an instruction from one item to another, and does not infer requests you did not make. Good for structured extraction and predictable pipelines; a trap for instructions meant to apply broadly.
 
@@ -509,17 +597,33 @@ Apply this formatting to every section, not just the first one.
 
 The same literalism means style and tone directives carried from Sonnet 4.6 now apply at face value — re-baseline holdover lines like "be concise" before keeping them.
 
-### Response length calibrates to task complexity
+On Sonnet 5.5 this literalism covers the *requested change*; it still adds unrequested tests and docs around it (see "Unrequested additions"). Scope both explicitly.
+
+#### Response length calibrates to task complexity
 
 Shorter on simple lookups, longer on open-ended analysis, rather than a fixed verbosity. If your product depends on a particular length, tune explicitly. Positive examples of the concision you want outperform negative "don't do X" instructions.
 
-### Tool use
+#### New tokenizer
 
-More agentic than Sonnet 4.6 by default — it reaches for tools and self-verification loops more readily. **With thinking disabled it becomes markedly less tool-eager**; if your harness relies on tool calls with thinking off, add explicit triggering guidance in the system prompt and in each tool's own `description`.
+The same text produces roughly **30% more tokens** than on Sonnet 4.6. No prompt change required, but everything measured in tokens shifts: re-run token counts against `claude-sonnet-5-5` rather than reusing 4.6 numbers, and re-check `max_tokens` limits sized close to expected output.
 
-### New tokenizer
+---
 
-The same text produces roughly **30% more tokens** than on Sonnet 4.6. No prompt change required, but everything measured in tokens shifts: re-run token counts against `claude-sonnet-5` rather than reusing 4.6 numbers, and re-check `max_tokens` limits sized close to expected output.
+## Opus 5.5 vs Sonnet 5.5 — where the advice diverges
+
+Older "5-gen" advice treats these models as one. On these axes the right edit for one is wrong for the other:
+
+| Axis | Opus 5.5 | Sonnet 5.5 |
+|---|---|---|
+| Effort start | `medium` (the default) | `high` default; `medium` for well-specified agentic work; `medium`/`low` for chat |
+| Turning thinking off | Impossible — `disabled` is a 400 | `between_tools` at `high` or below, no other fields, no per-message effort change |
+| Self-verification instruction | Delete (inherited over-verification) | Add a concrete real-check line if `low` reports changes done without checks |
+| "Think" instructions | Remove chat "think carefully" lines | Add "Think the problem through before you answer." for reasoning tasks with JSON output |
+| Tool eagerness | Leave alone; add "explore broadly" only for multi-app automation | Remove "minimize tool calls"; add the search-specifics instruction in chat/knowledge work |
+| Vision | Re-test scaffolding; tools only for the densest inputs | Crop/zoom/code tools beat raising effort on charts |
+| Harness text after tool results | Elapsed-time line on each message is the recommended speed lever | Per-step countdowns and notices can make it treat real user messages as injection — keep them rare and separate |
+| Running too long at high effort | Lower effort | At `xhigh`/`max` add "stop when checks pass, no extra review rounds" |
+| Early stops | Text-only `end_turn` progress reports in unattended runs → harness continuation | Check-ins at `low`/`medium` → raise effort or add the keep-working clause |
 
 ---
 
@@ -548,7 +652,7 @@ step was skipped, say that.
 
 ## Opus 4.7 — Behavior Shifts & Tuning (legacy)
 
-> Superseded by Opus 5. Several patterns below **invert** on Opus 5 — notably tool-use and subagent encouragement. Use this section only when targeting 4.7 specifically.
+> Superseded by Opus 5.5. Several patterns below **invert** on Opus 5.5 — notably tool-use and subagent encouragement. Use this section only when targeting 4.7 specifically.
 
 Opus 4.7 performs well out of the box on existing Opus 4.6 prompts, but several behaviors shifted and often need tuning. Most 4.6 snippets still work; what follows is what *changed*.
 
@@ -906,7 +1010,7 @@ After completing a task that involves tool use, provide a quick summary of the w
 
 For 4.7 specifically: this scaffolding is often unnecessary — 4.7 already gives regular high-quality updates. Try removing first.
 
-For Opus 5.5: updates between tool calls come back as `thinking` blocks, empty by default; `display: "updates"` returns them alone, `"summarized"` mixes them with reasoning summaries. Fix rendering first; then, if you want a predictable cadence, ask for it — it follows explicit update instructions well. See "User-facing progress updates" in the Opus 5.5 section.
+For Opus 5.5 (notes between tool calls) and Sonnet 5.5 (notes longer than a sentence or two; shorter remarks stay `text`): updates come back as `thinking` blocks, empty by default; `display: "updates"` returns them alone, `"summarized"` mixes them with reasoning summaries. Fix rendering first; then, if you want a predictable cadence, ask for it — it follows explicit update instructions well. See "User-facing progress updates" in the Opus 5.5 section.
 
 ---
 
@@ -963,7 +1067,7 @@ Extended thinking adds latency and should only be used when it will meaningfully
 - **Prefer general instructions** ("think thoroughly") over prescriptive steps — Claude's reasoning often exceeds handwritten plans
 - **Multishot examples work with thinking** — use `<thinking>` tags in few-shot examples; Claude generalizes the style
 - **Manual CoT fallback** when thinking is off — use `<thinking>` and `<answer>` tags. **Not on Opus 5.5:** thinking is always on, and asking for reasoning in the response text can be declined as `reasoning_extraction`; read `display: "summarized"` thinking blocks instead
-- **Self-check**: append "Before you finish, verify your answer against [test criteria]." — catches errors reliably in coding/math on 4.x. **Not on Opus 5**, where it causes over-verification (Opus 5.5: not re-characterized — start from the Opus 5 guidance)
+- **Self-check**: append "Before you finish, verify your answer against [test criteria]." — catches errors reliably in coding/math on 4.x. **Not on Opus 5.5** — over-verification was documented on Opus 5 and is the 5.5 starting point. **Sonnet 5.5 is the exception:** at `low` effort it can skip checks, so a concrete "run a real check before reporting done" instruction helps there
 - **Chat "think carefully" lines**: remove them on Opus 5.5 — effort is the control, and removing them made replies start sooner with no clear quality loss
 - **Word sensitivity:** when extended thinking is disabled, Opus 4.5 is particularly sensitive to "think" and variants. Use "consider", "evaluate", "reason through" instead.
 
@@ -1077,8 +1181,8 @@ Delegation tendency **alternates by generation** — do not carry a subagent sni
 
 | Model | Tendency | What the prompt needs |
 |---|---|---|
-| **Opus 5.5** | Not re-characterized; strong at long runs with parallel subagents | Start from the Opus 5 ceiling; add elapsed-time / budget signals to speed a team up |
-| **Opus 5** | Over-delegates | A **ceiling** — see `agent-orchestration.md` §1 |
+| **Opus 5.5** | Inherits Opus 5's over-delegation as the starting point; strong at long runs with parallel subagents | A **ceiling** (`agent-orchestration.md` §1); elapsed-time / budget signals to speed a team up |
+| **Sonnet 5.5** | At `xhigh`/`max` launches its own reviewer subagents after finishing | Run routine work at `high` or below, or add the "no extra review rounds" clause |
 | Opus 4.8 | Under-delegates | Explicit triggering guidance |
 | Opus 4.7 | Under-delegates | Encouragement to fan out |
 | Opus 4.6 | Over-delegates | A ceiling |
@@ -1086,12 +1190,12 @@ Delegation tendency **alternates by generation** — do not carry a subagent sni
 
 For the full multi-model orchestration playbook — controller prompts, worker briefs, external (Codex-style) executors, effort routing — see **`agent-orchestration.md`**.
 
-**Curb overuse (Opus 5 / 4.6):**
+**Curb overuse (Opus 5.5 / 4.6):**
 ```text
 Use subagents when tasks can run in parallel, require isolated context, or involve independent workstreams that don't need to share state. For simple tasks, sequential operations, single-file edits, or tasks where you need to maintain context across steps, work directly rather than delegating.
 ```
 
-**Encourage use (4.7 / 4.8 — do NOT carry this to Opus 5):**
+**Encourage use (4.7 / 4.8 — do NOT carry this to Opus 5.5):**
 ```text
 Do not spawn a subagent for work you can complete directly in a single response (e.g. refactoring a function you can already see).
 
@@ -1222,11 +1326,12 @@ Experiment with effort settings to tune behavior.
 | From → To | Key actions |
 |---|---|
 | **Opus 5 → Opus 5.5** | Keep Opus 5 prompts as the baseline. Remove `thinking: disabled`/`budget_tokens` and `tool_choice` `any`/`tool` (400s); move computer use to `computer_toolset_20260801`; set `effort` explicitly — default is now `medium`, start there and sweep, reserve `xhigh`/`max` for measured gains; size `max_tokens` for thinking (64K at `xhigh`/`max`, up to 128K for long agentic turns); read content blocks by `type`; set `display: "updates"` if you render text between tool calls; delete reasoning-in-response instructions (`reasoning_extraction`) and any "don't think" rule; handle `stop_reason: "refusal"`; for unattended loops treat text-only `end_turn` as a report and add continuation logic; remove chat "think carefully" lines; re-test vision scaffolding |
-| **Opus 4.8 → Opus 5** | **Delete** self-verification instructions (over-verification); **remove** "delegate more" guidance and add a subagent ceiling; add explicit conciseness instruction (effort will not shorten output); add deliverable-length instruction; add scope-discipline clause incl. "finish the whole task"; add corrections instruction; re-sweep effort (`low`/`medium` are strong); check `max_tokens` — thinking is now on by default; remove forced progress-update scaffolding |
-| **Sonnet 4.6 → Sonnet 5** | Remove non-default `temperature`/`top_p`/`top_k` (400); replace `temperature`-driven variety with propose-then-pick; set `display: "summarized"` if you stream reasoning; re-count tokens (~30% more); state scope explicitly for literal following; raise effort rather than prompting around shallow reasoning; add tool-triggering guidance if thinking is disabled |
-| **Any 4.x → 5 (context)** | Cut absolute-but-untrue rules, duplicated constraints across layers, `CRITICAL`/`YOU MUST` emphasis, and self-check scaffolding — see "Context Engineering for the 5 Generation" |
+| **Sonnet 5 → Sonnet 5.5** | Keep Sonnet 5 prompts as the baseline. Replace `thinking: disabled` with `between_tools` (at `high` or below, no other fields) and drop any "don't think" rule; replace forced `tool_choice` with `auto` + strict tools; move computer use to `computer_toolset_20260801`; keep history append-only (signed thinking); re-sweep effort — recalibrated levels, `high` default, `medium` for well-specified agentic work, `medium`/`low` for chat; read content blocks by `type` and render progress-update `thinking` blocks; handle the wider refusal set; add the real-check instruction if `low` reports undone checks; remove tool-discouraging language in chat; move mid-turn user text out of `tool_result` |
+| **Opus 4.8 → Opus 5.5** | All of the Opus 5 → 5.5 row, plus the inherited Opus 5 changes: **delete** self-verification instructions (over-verification); **remove** "delegate more" guidance and add a subagent ceiling; add explicit conciseness instruction (effort will not shorten output); add deliverable-length instruction; add scope-discipline clause incl. "finish the whole task"; add corrections instruction; check `max_tokens` — thinking is always on |
+| **Sonnet 4.6 → Sonnet 5.5** | All of the Sonnet 5 → 5.5 row, plus: remove `temperature`/`top_p`/`top_k` and thinking budgets (400); replace `temperature`-driven variety with propose-then-pick; expect thinking on requests with no `thinking` field and revisit `max_tokens`; set `display: "summarized"` if you show thinking; re-count tokens (~30% more than 4.6) and re-budget image tokens; state scope explicitly for literal following |
+| **Any 4.x → 5.5 (context)** | Cut absolute-but-untrue rules, duplicated constraints across layers, `CRITICAL`/`YOU MUST` emphasis, and self-check scaffolding (keep a concrete real-check line for Sonnet 5.5 at `low`) — see "Context Engineering for the 5 Generation" |
 | 4.5 → 4.6 (legacy) | Explicit `effort` setting; migrate `budget_tokens` → adaptive thinking; dial back aggressive tool prompts; add anti-overengineering prompt; migrate prefill on last turn |
 | 4.6 → 4.7 (legacy) | Leave existing prompts as a baseline (mostly compatible); add `xhigh` for coding; add explicit scope statements for literal following; replace "don't nitpick" with "report every issue" in code review; remove forced-summary scaffolding; override design house style explicitly; soften "CRITICAL" language further |
 | Sonnet 4.5 → Sonnet 4.6 (legacy) | Set `effort` explicitly (`medium` default, `low` for latency); give 64k `max_tokens`; migrate `budget_tokens` → adaptive thinking |
 
-See the [official migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide) for API parameter details, and the [Opus 5.5 migration guide](https://platform.claude.com/docs/en/models/opus-5-5/migration-guide) for the per-starting-model checklist.
+See the [official migration guide](https://platform.claude.com/docs/en/about-claude/models/migration-guide) for API parameter details, and the [Opus 5.5](https://platform.claude.com/docs/en/models/opus-5-5/migration-guide) and [Sonnet 5.5](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide) migration guides for the per-starting-model checklists.

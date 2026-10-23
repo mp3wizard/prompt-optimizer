@@ -2,8 +2,8 @@
 
 Patterns for the orchestration shape where **one model plans and judges** and **other models do the typing**:
 
-- **Controller** — Claude Opus 5 or Opus 5.5. Holds the goal, decides scope, writes the briefs, verifies the results.
-- **Claude workers** — Claude Sonnet 5 subagents. Share the harness and tool surface; inherit no conversation context beyond the brief you write.
+- **Controller** — Claude Opus 5.5. Holds the goal, decides scope, writes the briefs, verifies the results.
+- **Claude workers** — Claude Sonnet 5.5 subagents. Share the harness and tool surface; inherit no conversation context beyond the brief you write.
 - **External workers** — a Codex CLI executor (or any non-Claude coding agent). Separate process, separate sandbox, **zero** conversation context.
 
 Optimizing prompts for this stack is a different job from optimizing a single prompt. Three prompts exist per unit of work, and they fail in different ways:
@@ -18,7 +18,7 @@ Optimizing prompts for this stack is a different job from optimizing a single pr
 
 ## 1. The delegation gate belongs in the controller prompt
 
-Opus 5 delegates **more readily** than Opus 4.7/4.8 did. That reverses the prior generation's tuning: 4.7 needed encouragement to fan out, Opus 5 needs a ceiling. Every subagent re-establishes context, re-explores, reports back, and then the controller re-reads the report — the overhead is real and multiplies.
+The Opus 5 line delegates **more readily** than Opus 4.7/4.8 did (documented on Opus 5; the Opus 5.5 guide keeps Opus 5 patterns as the starting point). That reverses the prior generation's tuning: 4.7 needed encouragement to fan out, Opus 5.5 needs a ceiling. Every subagent re-establishes context, re-explores, reports back, and then the controller re-reads the report — the overhead is real and multiplies.
 
 Put an explicit gate in the controller prompt:
 
@@ -51,7 +51,7 @@ The three "do NOT" lines carry most of the value. The most common waste in this 
 
 ## 2. Write worker briefs as if the worker has amnesia — because it does
 
-A Sonnet 5 subagent sees your brief and its own tools. A Codex executor sees even less: a different process, a different working directory, and none of the conversation. Anything the brief does not say does not exist.
+A Sonnet 5.5 subagent sees your brief and its own tools. A Codex executor sees even less: a different process, a different working directory, and none of the conversation. Anything the brief does not say does not exist.
 
 **Every brief carries five things:**
 
@@ -66,15 +66,24 @@ Report:      [what to hand back, and to say plainly if a step was refused or ski
 
 `Done means` is the field people drop, and it is the one that makes verification possible. "Refactor the auth module" is unverifiable. "`pytest tests/auth -q` exits 0 and `grep -c 'legacy_token' src/auth/` returns 0" is verifiable by the controller without reading a line of the diff.
 
-### Sonnet 5 workers: state the scope, it will not generalize
+### Sonnet 5.5 workers: state the scope, it will not generalize
 
-Sonnet 5 follows instructions **literally** and does not silently widen an instruction from one item to the neighbouring ones. In a single prompt that reads as precision; in a delegated brief it reads as a worker that fixed exactly the one case you named and left eleven identical ones alone.
+Sonnet 5.5 follows instructions **literally** (inherited from Sonnet 5) and does not silently widen an instruction from one item to the neighbouring ones. In a single prompt that reads as precision; in a delegated brief it reads as a worker that fixed exactly the one case you named and left eleven identical ones alone.
 
 ```text
 Apply this to every handler in the directory, not only the first one.
 ```
 
-Effort defaults to `high`. Raise to `xhigh` for the hardest coding work. If a worker returns shallow reasoning, **raise effort rather than adding prose telling it to think harder** — the effort parameter is the working lever and prompt nudges are a poor substitute for it.
+It also adds unrequested tests, docs, and small supporting files around the requested change, at every effort level. If the controller needs the diff limited to the brief, say so: "Don't add features, tests, files, docs, or refactors that weren't asked for — mention them at the end."
+
+Effort levels are recalibrated on Sonnet 5.5, and each level changes how a worker finishes:
+
+- **`medium` for well-specified agentic work**, `high` for harder or longer tasks. Asking it to think less does not reliably reduce thinking — lower effort instead.
+- **At `low`/`medium` it can stop and check in early** — which, for a worker, returns an incomplete result to the controller. Add to the brief: "Keep going until everything in this brief is done; stop to ask only when you cannot continue, or before a risky step."
+- **At `low` it can report a change done without running a check.** Add the real-check instruction (`model-techniques.md`, Sonnet 5.5 "Verification on coding tasks"). This is not the controller self-verifying (§3) — it is the worker producing the evidence its report should carry.
+- **At `xhigh`/`max` it starts its own review rounds and reviewer subagents.** Workers rarely need that; run them at `high` or below, or add "when the work is done and checks pass, stop and report — no extra review rounds or reviewer subagents".
+
+Harness rules for Sonnet 5.5 workers: accept unambiguous wrong-case tool names (or return `is_error` with the exact name); keep history append-only (signed thinking); never put controller or user text inside a `tool_result` — it can be read as a prompt injection.
 
 ### Codex-style external workers: design around the process boundary, not the model
 
@@ -95,9 +104,9 @@ leave the flags on every other service exactly as they are.
 
 ## 3. Do not put verification instructions in the controller prompt
 
-Opus 5 verifies its own work without being told. Instructions that *tell* it to verify — "include a final verification step", "double-check your answer", "use a subagent to verify" — now cause over-verification: redundant passes, extra subagents, tokens spent re-confirming what was already confirmed.
+The Opus controller verifies its own work without being told (documented on Opus 5, inherited as the Opus 5.5 starting point). Instructions that *tell* it to verify — "include a final verification step", "double-check your answer", "use a subagent to verify" — now cause over-verification: redundant passes, extra subagents, tokens spent re-confirming what was already confirmed.
 
-**This inverts a standard prompting best practice.** "Ask the model to self-check" is generally sound advice and is wrong here. If your prompt library applies it as a global rule, carve out an exception for this model rather than propagating it.
+**This inverts a standard prompting best practice.** "Ask the model to self-check" is generally sound advice and is wrong here. If your prompt library applies it as a global rule, carve out an exception for this model rather than propagating it. The carve-out runs the other way for Sonnet 5.5 workers at `low` effort, which need a concrete real-check line (§2).
 
 The fix is a deletion, not a rewrite:
 
@@ -117,7 +126,7 @@ verification.
 
 ## 4. Keep the controller's narration readable
 
-Opus 5 narrates more than prior models between tool calls, and its per-message output in agentic sessions runs longer. In an orchestration session the user is often away — the controller's summary is the first and only thing they read.
+The Opus 5 line narrates more than prior models between tool calls, and its per-message output in agentic sessions runs longer. In an orchestration session the user is often away — the controller's summary is the first and only thing they read.
 
 ```text
 Default to silence between delegations. Write text when you find something, change
@@ -133,7 +142,7 @@ shorthand in the summary: complete sentences, terms spelled out, no arrow chains
 labels you invented earlier.
 ```
 
-Also worth curbing: Opus 5 flags and explains its own earlier mistakes at length, which reads as thrash across a long orchestration run.
+Also worth curbing: the Opus 5 line flags and explains its own earlier mistakes at length, which reads as thrash across a long orchestration run.
 
 ```text
 Only correct an earlier statement when the error changes the user's decisions. State
@@ -146,7 +155,7 @@ you correct course, do it without narrating the correction at length.
 
 ## 5. Scope discipline across the whole run
 
-Opus 5 can add steps nobody asked for, or apply its own judgment about what the task should be without saying so. Across a delegated run this compounds: the controller widens the goal, then briefs three workers against the widened version.
+The Opus 5 line can add steps nobody asked for, or apply its own judgment about what the task should be without saying so. Across a delegated run this compounds: the controller widens the goal, then briefs three workers against the widened version.
 
 ```text
 Deliver what the user asked for, at the scope they intended. Make routine judgment
@@ -170,6 +179,8 @@ On long multi-part tasks Opus 5.5 keeps the user updated, and some of those upda
 
 **Time signals speed up a team.** Opus 5.5 is highly responsive to elapsed time. Have the harness append elapsed time against a budget to each message it returns to the controller — e.g. `elapsed 340s / 1200s` — and it paces the team, mostly by keeping more workers running in parallel. Set the budget somewhat above the time you want, tune it on samples, and keep a hard timeout of your own: the budget is advisory. Without a sensible budget, show elapsed time alone plus one "time matters" sentence in the system prompt. Check answer quality, since under time pressure it may search and verify a little less.
 
+Keep the time line on the **controller's** messages. Sonnet 5.5 workers in interactive sessions can read per-step text after tool results (countdowns, notices) as a prompt injection and start ignoring genuine user messages.
+
 ---
 
 ## 6. Effort routing across the stack
@@ -178,17 +189,16 @@ Effort is the primary cost lever in an orchestration shape, because it applies p
 
 | Role | Start at | Notes |
 |---|---|---|
-| Controller (Opus 5) | `high` | Planning and judging. `xhigh` only for genuinely hard architecture decisions. |
 | Controller (Opus 5.5) | `medium` | The default, and it matches or beats Opus 5 at `high` on coding and knowledge-work evals. Opus 5.5 thinks more per level, so an inherited `high`/`xhigh` costs more. Raise only where evals show a gain. |
-| Worker — hard coding (Sonnet 5) | `xhigh` | The hardest coding and agentic work. |
-| Worker — routine edits (Sonnet 5) | `high` → sweep down | Default. `medium` ≈ Sonnet 4.6 at `high`. |
+| Worker — well-specified agentic coding (Sonnet 5.5) | `medium` | Add the keep-working clause; at `low` also the real-check line. |
+| Worker — harder or longer tasks (Sonnet 5.5) | `high` | `xhigh`/`max` only with a measured gain — they add self-started review rounds. |
 | Worker — mechanical fan-out | `low` / `medium` | Both models are unusually strong at the low end; re-check quality on your own evals before assuming you need more. |
 
 Effort defaults carried over from a prior model generation are rarely the right setting. Sweep on your own evals rather than inheriting.
 
 On Opus 5.5 thinking is always on, so effort is the only thinking control; change it mid-conversation with a per-message effort change (beta) rather than the top-level parameter, which invalidates the prompt cache.
 
-**Effort does not control visible response length** on Opus 5 — lowering it to get shorter output does not reliably work. Use an explicit conciseness instruction for length and effort for depth.
+**Effort does not control visible response length** on the Opus 5 line — lowering it to get shorter output does not reliably work. Use an explicit conciseness instruction for length and effort for depth.
 
 ---
 
@@ -196,10 +206,10 @@ On Opus 5.5 thinking is always on, so effort is the only thinking control; chang
 
 | Anti-pattern | Why it hurts | Fix |
 |---|---|---|
-| "Delegate aggressively for speed" in the controller prompt | Opus 5 already over-delegates; this compounds cost | Ceiling, not encouragement (§1) |
+| "Delegate aggressively for speed" in the controller prompt | Opus 5.5 already over-delegates; this compounds cost | Ceiling, not encouragement (§1) |
 | Brief that references the conversation ("the file we discussed") | Worker has no conversation | Absolute paths, self-contained brief (§2) |
 | Accepting a wrapper's "done" | Wrappers report status ambiguously | Check disk, re-run the check (§2, §3) |
-| "Verify your work carefully" in the controller prompt | Causes over-verification on Opus 5 | Delete it; verify *workers* instead (§3) |
+| "Verify your work carefully" in the controller prompt | Causes over-verification on Opus 5.5 | Delete it; verify *workers* instead (§3) |
 | Unscoped negative constraint in a worker brief | External executors generalize cautions | Say where the caution does not apply (§2) |
 | Same effort for every agent | Multiplies cost across the fleet | Route effort by role (§6) |
 | Loop treats a text-only `end_turn` as done | Opus 5.5 ends turns with progress reports; the run stops partway | Checklist + continuation message, capped at 2–3 (§5) |
@@ -215,7 +225,9 @@ On Opus 5.5 thinking is always on, so effort is the only thinking control; chang
 - [ ] Every worker brief is self-contained: absolute paths, no conversation references
 - [ ] Every worker brief has a `Done means` line that names an observable
 - [ ] Negative constraints in briefs state where they do **not** apply
-- [ ] Sonnet 5 briefs state scope explicitly ("every handler, not only the first")
+- [ ] Sonnet 5.5 briefs state scope explicitly ("every handler, not only the first") and say whether unrequested tests/docs are wanted
+- [ ] Sonnet 5.5 workers at `low`/`medium` carry the keep-working clause; at `low`, the real-check line
+- [ ] No controller or user text inside `tool_result` blocks; no per-step countdowns for interactive Sonnet 5.5 workers
 - [ ] Effort routed per role, not uniform (Opus 5.5 controller starts at `medium`)
 - [ ] Unattended Opus 5.5 loop has continuation logic and a hard timeout
 - [ ] Verification re-runs the claimed check rather than reading the report

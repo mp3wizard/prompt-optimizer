@@ -8,13 +8,12 @@
     {
       "name": "prompt-optimizer",
       "source": "./",
-      "description": "Optimizes prompts for Opus 5.5 / Opus 5 / Sonnet 5 / Fable 5, writes controller and worker prompts for multi-model agent stacks, and strips accumulated over-constraint from system prompts, skills, and CLAUDE.md files.",
+      "description": "Optimizes prompts for Opus 5.5 / Sonnet 5.5 / Fable 5, writes controller and worker prompts for multi-model agent stacks, and strips accumulated over-constraint from system prompts, skills, and CLAUDE.md files.",
       "category": "productivity",
       "keywords": [
         "prompt-engineering",
         "opus-5-5",
-        "opus-5",
-        "sonnet-5",
+        "sonnet-5-5",
         "fable-5",
         "agent-orchestration"
       ]
